@@ -24,7 +24,7 @@ class Trigger(TypedDict):
 
 class EdapDevice(ABC):
     """
-    Base SampleProcessor class. Hold main logic that includes triggers.
+    Base EdapDevice class. Holds main logic that includes trigger calculations.
     """
     def __init__(self, triggers: list[Trigger] | None = None) -> None:
         self._triggers: list[Trigger] = triggers or []
