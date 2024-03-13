@@ -38,8 +38,6 @@ class EdapDevice(ABC):
             "sample_energy": 0
         }
         self._property_failures: dict[str, int] = {}
-        self._property_trigger_checkers = [self._level_triggered, self._delta_triggered]
-
 
     def get_triggers(self) -> list[Trigger]:
         return self._triggers
@@ -50,10 +48,11 @@ class EdapDevice(ABC):
         else:
             self._triggers = triggers
         if len(self._triggers) == 0:
-            self._triggers.append({
-                "property": "time",
-                "delta": 3600,
-                "id": "unset_time"
+            self._triggers.append(
+                {
+                    "property": "time",
+                    "delta": 3600,
+                    "id": "unset_time"
                 })
 
     def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
@@ -72,12 +71,6 @@ class EdapDevice(ABC):
         last_value: float = self._last_sample.get(trigger_property) or (self._last_sample.get("sensors") or {}).get(trigger_property) or 0
         for level in levels:
             if last_value > level > value or last_value < level < value:
-                return True
-        return False
-
-    def _check_property_trigger_attributes(self, value, trigger):
-        for checker in self._property_trigger_checkers:
-            if checker(value, trigger):
                 return True
         return False
 
@@ -102,9 +95,7 @@ class EdapDevice(ABC):
         if value is not None:
             tolerance_triggered = self._is_tolerance_triggered(trigger, False)
             self._property_failures[trigger_property] = 0
-            if tolerance_triggered:
-                return True
-            if self._check_property_trigger_attributes(value, trigger):
+            if tolerance_triggered or self._level_triggered(value, trigger) or self._delta_triggered(value, trigger):
                 return True
         else:
             self._property_failures[trigger_property] = self._property_failures.get(trigger_property, 0) + 1
@@ -115,7 +106,6 @@ class EdapDevice(ABC):
     def _round(self, number: float | None, precision: int = 6) -> float | None:
         # doesn't really belong in the class, to be moved in a util file
         return None if number is None else round(number, precision)
-
 
     def trigger(self, sample: EdapSample) -> EdapSample | None:
         """If some triggers were activated, return modified sample with trigger list inside, otherwise, return None"""

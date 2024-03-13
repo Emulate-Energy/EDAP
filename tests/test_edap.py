@@ -107,3 +107,31 @@ def test_tolerance_trigger():
     triggered_sample = edap_device.trigger({"power": 21})
     # number of failures for power was 3, but the value is present, trigger activated and count is reset
     assert triggered_sample is not None
+
+
+def test_level_triggered():
+    edap_device = MockEdapDevice()
+    edap_device.set_triggers([
+    {
+        "id": "levels_1",
+        "property": "power",
+        "levels": [10, 15, 30]
+    },
+    {
+        "id": "levels_2",
+        "property": "power",
+        "levels": [19, 30]
+    }
+    ])
+
+    # no trigger since we assumt to start at 0
+    assert edap_device.trigger({"power": 9}) is None
+
+    # level 10 activated
+    assert edap_device.trigger({"power": 11}) is not None
+
+    # no level passed
+    assert edap_device.trigger({"power": 14}) is None
+
+    # level 15 passed
+    assert edap_device.trigger({"power": 18}) is not None
