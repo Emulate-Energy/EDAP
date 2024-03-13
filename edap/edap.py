@@ -44,7 +44,7 @@ class EdapDevice(ABC):
     def get_triggers(self) -> list[Trigger]:
         return self._triggers
 
-    def set_triggers(self, triggers: list[Trigger] | None = None) -> None:
+    def set_triggers(self, triggers: list[Trigger] | None) -> None:
         if triggers is None:
             self._triggers = []
         else:

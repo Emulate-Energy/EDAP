@@ -5,7 +5,7 @@ from tests.utils import MockEdapDevice
 def test_get_set_triggers():
     edap_device = MockEdapDevice()
     assert len(edap_device.get_triggers()) == 0
-    edap_device.set_triggers()
+    edap_device.set_triggers(None)
     assert len(edap_device.get_triggers()) == 1
 
 def test_single_trigger():
