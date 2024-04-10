@@ -142,7 +142,7 @@ class EdapDevice(ABC):
                     if sensor_value is not None:
                         self._last_sample['sensors'][trigger_sensor] = sensor_value
 
-        return self._last_sample
+        return deepcopy(self._last_sample)
 
     @abstractmethod
     def generate_sample(self, sample: EdapSample) -> EdapSample:
