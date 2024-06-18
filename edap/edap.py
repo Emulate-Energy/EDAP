@@ -52,6 +52,7 @@ class EdapDevice(ABC):
                 {
                     "property": "time",
                     "delta": 3600,
+                    "value": datetime.now(timezone.utc),
                     "id": "unset_time"
                 })
 
@@ -81,16 +82,17 @@ class EdapDevice(ABC):
             return (exact_equals and failures == tolerance) or (not exact_equals and failures >= tolerance)
         return False
 
-    def _is_time_triggered(self, delta_time: int) -> bool:
-        last_sample_time: datetime | None = self._last_sample.get('time')
-        if last_sample_time is not None:
-            return datetime.now(timezone.utc) - last_sample_time >= timedelta(seconds=int(delta_time))
-        return False
+    def _is_time_triggered(self, sample_time: datetime, trigger: Trigger) -> bool:
+        delta_time = trigger.get('delta')
+        last_trigger_time = trigger.get('value')
+        if last_trigger_time is not None:
+            return sample_time - last_trigger_time >= timedelta(seconds=int(delta_time))
+        return True
 
     def _single_trigger_activated(self, sample: EdapSample, trigger: Trigger) -> bool:
         trigger_property: str = trigger.get('property')
         if trigger_property == "time":
-            return self._is_time_triggered(trigger.get('delta'))
+            return self._is_time_triggered(sample.get('time'), trigger)
         value: Any = sample.get(trigger_property) or (sample.get('sensors') or {}).get(trigger_property)
         if value is not None:
             tolerance_triggered = self._is_tolerance_triggered(trigger, False)
