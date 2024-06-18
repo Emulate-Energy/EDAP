@@ -54,10 +54,12 @@ def test_multiple_triggers():
 
 def test_time_trigger():
     edap_device = MockEdapDevice()
+    first_sample_time = datetime.now(timezone.utc)
     edap_device.set_triggers([
     {
         "property": "time",
         "delta": 60,
+        "value": first_sample_time,
         "id": "time_id"
     },
     {
@@ -67,18 +69,34 @@ def test_time_trigger():
         "id": "power_id"
     }
     ])
-
     # this sample triggers the power_id trigger and the time of the last sample is set to the time of this sample
-    triggered_sample = edap_device.trigger({"time": datetime.now(timezone.utc) - timedelta(minutes=2), "power": 23})
+    triggered_sample = edap_device.trigger({"time": first_sample_time, "power": 23})
     assert triggered_sample is not None
     assert triggered_sample.get("triggers")[0] == "power_id"
 
-
     # since time of the last sample was 2 minutes ago, and delta of the time trigger is defined as 60 seconds,
     # this sample should trigger the time_id trigger
-    triggered_sample = edap_device.trigger({"time": datetime.now(timezone.utc), "power": 20})
+    triggered_sample = edap_device.trigger({"time": first_sample_time + timedelta(minutes=2), "power": 20})
     assert triggered_sample is not None
     assert triggered_sample.get("triggers")[0] == "time_id"
+    assert triggered_sample.get("triggers")[1] == "power_id"
+
+def test_time_trigger__value_is_none():
+    edap_device = MockEdapDevice()
+    edap_device.set_triggers([
+    {
+        "property": "time",
+        "delta": 60,
+        "value": None,
+        "id": "time_id"
+    }])
+    sample_time = datetime.now(timezone.utc)
+
+    triggered_sample = edap_device.trigger({"time": sample_time, "power": 20})
+    assert triggered_sample is not None
+    assert triggered_sample.get("triggers")[0] == "time_id"
+    assert edap_device.get_triggers()[0].get('value') == sample_time
+
 
 def test_tolerance_trigger():
     edap_device = MockEdapDevice()
