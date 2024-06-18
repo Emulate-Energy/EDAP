@@ -52,7 +52,6 @@ class EdapDevice(ABC):
                 {
                     "property": "time",
                     "delta": 3600,
-                    "value": datetime.now(timezone.utc),
                     "id": "unset_time"
                 })
 
