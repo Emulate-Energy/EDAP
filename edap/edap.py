@@ -21,6 +21,7 @@ class Trigger(TypedDict):
     levels: list[float] | None
     tolerance: int | None
     value: Any
+    discard_sample: bool | None
 
 class EdapDevice(ABC):
     """
@@ -128,8 +129,13 @@ class EdapDevice(ABC):
             # update the values of activated triggers
             trigger['value'] = sample.get(trigger_property) or sensors.get(trigger_property)
 
+            # if the trigger tells us to discard the sample, we add a # in front of the trigger id
+            trigger_id = trigger.get('id', f'unset_{trigger_property}')
+            if trigger.get('discard_sample', False):
+                trigger_id = f"#{trigger_id}"
+
             # add ids of activated triggers to EDAP sample
-            self._last_sample['triggers'].append(trigger.get('id', f'unset_{trigger_property}'))
+            self._last_sample['triggers'].append(trigger_id)
 
             if len(self._last_sample['sensors']) == len(sensors):
                 continue
