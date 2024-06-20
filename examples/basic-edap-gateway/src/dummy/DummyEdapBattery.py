@@ -53,7 +53,7 @@ class DummyEdapBattery(EdapDevice):
             self.mediator.notify("trigger_activated", maybe_sample)
 
     def generate_sample(self, sample: EdapSample) -> dict:
-        sample.duration = (sample.time-self._last_sample.time).total_seconds()
-        sample.sample_energy = sample.energy-self._last_sample.energy
-        sample.triggers = []
+        sample["duration"] = (sample["time"] - self._last_sample["time"]).total_seconds()
+        sample["sample_energy"] = sample["energy"] - self._last_sample["energy"]
+        sample["triggers"] = []
         return sample
