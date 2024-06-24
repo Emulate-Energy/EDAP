@@ -1,0 +1,4 @@
+websockets==11.0.3
+aiohttp==3.8.6
+python-json-logger==2.0.7
+edap @ git+https://github.com/Emulate-Energy/EDAP@main
