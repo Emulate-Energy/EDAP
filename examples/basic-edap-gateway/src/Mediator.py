@@ -9,6 +9,10 @@ from src.DeviceConnection import DeviceConnection
 from src.dummy.DummyDeviceConnection import DummyDeviceConnection
 from src.dummy.DummyEdapBattery import DummyEdapBattery
 
+# temporary test imports for testing purposes
+from src.freq_modbus import read_frequency_loop
+from src.mqtt_test import mqtt_publish_loop
+
 EventType = Literal["sample_received", "trigger_activated", "command_received"]
 CommandType = Literal["set", "set_triggers", "ping"]
 
@@ -24,6 +28,9 @@ class Mediator:
         self.connection_manager = ConnectionManager(self)
         self.device_connection = DummyDeviceConnection(self, event_loop)
         self.device = DummyEdapBattery(self)
+
+        self.freq_loop = None
+        self.mqqt_loop = None
 
     def notify(self, event: EventType, data: Any = None):
         """React to different kinds of events, triggered by one of the components."""
@@ -95,8 +102,15 @@ class Mediator:
         self.connection_manager.start()
         self.device_connection.start()
 
+        # temporary code for testing purposes
+        self.freq_loop = self._event_loop.create_task(read_frequency_loop())
+        self.mqqt_loop = self._event_loop.create_task(mqtt_publish_loop())
+
     async def stop(self):
         """Stop the different components of the mediator."""
         logging.info("Shutting down the Edap gateway...")
         await self.connection_manager.stop()
         self.device_connection.stop()
+
+        self.freq_loop.cancel()
+        self.mqqt_loop.cancel()

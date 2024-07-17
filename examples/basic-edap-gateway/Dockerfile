@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11.5-slim-bookworm
+FROM python:3.10-slim-bookworm
 
 # Install dumb-init and clean up apt leftovers
 RUN apt-get update && apt-get install -y --no-install-recommends \
