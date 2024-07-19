@@ -151,9 +151,21 @@ class EdapDevice(ABC):
 
         return deepcopy(self._last_sample)
 
-    @abstractmethod
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
-        Adds remaining fields to the EDAP sample (sample_energy and perhaps others), handles
-        calculations involving values from the last sample
+        Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
+        will be filled in by the various activated triggers. Also "sample_energy" and "duration" will be calcualted if they are not provided.
+        If any calculations involving values from the last sample are needed, this method needs to be overrriden. Any sensors added here will always
+        be present in the triggered EDAP sample.
         """
+        return {
+            "time":  sample.get("time"),
+            "power": sample.get("power"),
+            "energy": sample.get("energy"),
+            "sample_energy": sample.get("sample_energy") if "sample_energy" in sample or sample.get("energy") is None or self._last_sample.get("energy") is None else\
+                sample.get("energy") - self._last_sample.get("energy"),
+            "duration": sample.get("duration") if "duration" in sample or sample.get("time") is None or self._last_sample.get("time") is None else\
+                (sample.get("time") - self._last_sample.get("time")).total_seconds(),
+            "triggers": [],
+            "sensors": {}
+        }
