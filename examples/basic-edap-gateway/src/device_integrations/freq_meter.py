@@ -30,6 +30,19 @@ class FrequencyMeterConnection(DeviceConnection):
 
     def __init__(self, mediator, event_loop: asyncio.AbstractEventLoop):
         super().__init__(mediator, event_loop)
+        network_devices = read_network_scan()
+        if network_devices:
+            self.ip = network_devices[0]["ip"]
+            logging.warning({"message": "Found devices in network scan",
+                             "devices": network_devices,
+                             "selected_ip": self.ip})
+        else:
+            self.ip = DEVICE_IP
+            logging.warning({
+                "message": "No devices found in network scan, using default IP",
+                "selected_ip": self.ip})
+
+        self.port = DEVICE_PORT
 
     def connect(self):
         logging.debug({"message": "Connecting to frequency meter"})
