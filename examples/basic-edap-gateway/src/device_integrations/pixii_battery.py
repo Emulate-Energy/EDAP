@@ -3,6 +3,8 @@ import os
 import asyncio
 import logging
 from random import random
+from datetime import datetime, timezone
+
 from pymodbus.client import ModbusTcpClient
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder

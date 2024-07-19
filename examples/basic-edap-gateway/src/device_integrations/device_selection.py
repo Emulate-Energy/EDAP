@@ -27,3 +27,11 @@ def get_edap_device(mediator, event_loop: asyncio.AbstractEventLoop) -> tuple[De
             DummyEdapBattery(mediator))
 
     raise ValueError(f"Unknown device model: {device_model}")
+
+
+# we could add scanning logic here for automatically detecting the
+# connected device. This would ultimately be ideal, probably?
+
+# other way to do this would be by allowing the user to specify the
+# device model, and then send it from the proxy to the gateway over WS as
+# a command.
