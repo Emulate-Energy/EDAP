@@ -10,8 +10,30 @@ from pymodbus.payload import BinaryPayloadDecoder
 from edap import EdapDevice, EdapSample, Trigger
 
 from src.DeviceConnection import DeviceConnection
+import subprocess
+import re
+
+def get_device_ip(interface='eth0'):
+    try:
+        # Run the arp-scan command
+        result = subprocess.run(['sudo', 'arp-scan', '--interface', interface, '--localnet'],
+                                capture_output=True, text=True, check=True)
+        # Get the output
+        output = result.stdout
+        output_lines = output.split('\n') # split into rows
+        scan_result_lines = output_lines[2:-4] # might be slightly wrong, try it
+        results = [line.split() for line in scan_result_lines]
+        ips = [r[0] for r in results]
+        mac_addressess = [r[1] for r in results]
+        companies = [r[2] for r in results]
+        # Extract IP addresses using regex
+        return ips, mac_addressess, companies
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}")
+        return []
+
 # IP address and port of the Modbus TCP device
-DEVICE_IP = '192.168.10.20'  # Replace with the actual IP address
+DEVICE_IP = get_device_ip('eth0')[0][0]
 DEVICE_PORT = 502
 
 # Addresses of the registers
