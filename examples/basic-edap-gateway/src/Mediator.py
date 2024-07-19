@@ -8,7 +8,7 @@ from src.ConnectionManager import ConnectionManager
 from src.DeviceConnection import DeviceConnection
 from src.dummy.DummyDeviceConnection import DummyDeviceConnection
 from src.dummy.DummyEdapBattery import DummyEdapBattery
-
+from src.device_integrations.device_selection import get_edap_device
 # temporary test imports for testing purposes
 from src.freq_modbus import read_frequency_loop
 from src.mqtt_test import mqtt_publish_loop
@@ -26,8 +26,14 @@ class Mediator:
     def __init__(self, event_loop: asyncio.AbstractEventLoop):
         self._event_loop = event_loop
         self.connection_manager = ConnectionManager(self)
-        self.device_connection = DummyDeviceConnection(self, event_loop)
-        self.device = DummyEdapBattery(self)
+
+        # Temporary code for testing different devices
+        connection, device = get_edap_device(self, event_loop)
+
+        self.device_connection = connection
+        self.device = device
+        # self.device_connection = DummyDeviceConnection(self, event_loop)
+        # self.device = DummyEdapBattery(self)
 
         self.freq_loop = None
         self.mqqt_loop = None
