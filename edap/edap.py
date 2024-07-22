@@ -151,9 +151,6 @@ class EdapDevice(ABC):
 
         return deepcopy(self._last_sample)
 
-    def _has_or_none(self, sample, prop, calc_prop):
-        return prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None
-
     def _get_delta(self, sample, prop, calc_prop):
         if prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None:
             return sample.get(prop)
