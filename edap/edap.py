@@ -154,6 +154,13 @@ class EdapDevice(ABC):
     def _has_or_none(self, sample, prop, calc_prop):
         return prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None
 
+    def _get_delta(self, sample, prop, calc_prop):
+        if prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None:
+            return sample.get(prop)
+        if prop == "time":
+            return (sample.get("time") - self._last_sample.get("time")).total_seconds()
+        return sample.get(prop,0) - self._last_sample.get(prop,0)
+
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
         Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
@@ -165,8 +172,8 @@ class EdapDevice(ABC):
             "time":  sample.get("time"),
             "power": sample.get("power"),
             "energy": sample.get("energy"),
-            "sample_energy": sample.get("sample_energy") if self._has_or_none(sample, "sample_energy", "energy") else sample.get("energy")-self._last_sample.get("energy"),
-            "duration": sample.get("duration") if self._has_or_none(sample, "duration", "time") else (sample.get("time")-self._last_sample.get("time")).total_seconds(),
+            "sample_energy": self._get_delta(sample, "sample_energy", "energy"),
+            "duration": self._get_delta((sample, "duration", "time"),
             "triggers": [],
             "sensors": {}
         }
