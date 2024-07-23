@@ -3,7 +3,7 @@ from edap import EdapDevice, EdapSample
 
 
 class MockEdapDevice(EdapDevice):
-    def generate_sample(self, sample: EdapSample) -> EdapSample:
+    def unused_generate_sample(self, sample: EdapSample) -> EdapSample:
         time = sample.get('time') or datetime.now(timezone.utc)
         last_time = self._last_sample.get('time')
         last_energy = self._last_sample.get('energy') or 0
