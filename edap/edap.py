@@ -170,7 +170,7 @@ class EdapDevice(ABC):
             "power": sample.get("power"),
             "energy": sample.get("energy"),
             "sample_energy": self._get_delta(sample, "sample_energy", "energy"),
-            "duration": self._get_delta((sample, "duration", "time"),
+            "duration": self._get_delta(sample, "duration", "time"),
             "triggers": [],
             "sensors": {}
         }
