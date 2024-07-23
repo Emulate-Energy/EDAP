@@ -154,9 +154,9 @@ class EdapDevice(ABC):
     def _get_delta(self, sample, prop, calc_prop):
         if prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None:
             return sample.get(prop)
-        if prop == "time":
+        if calc_prop == "time":
             return (sample.get("time") - self._last_sample.get("time")).total_seconds()
-        return sample.get(prop,0) - self._last_sample.get(prop,0)
+        return sample.get(calc_prop,0) - self._last_sample.get(calc_prop,0)
 
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
