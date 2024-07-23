@@ -153,3 +153,33 @@ def test_level_triggered():
 
     # level 15 passed
     assert edap_device.trigger({"power": 18}) is not None
+
+def test_default_generate_sample():
+    edap_device = MockEdapDevice()
+    edap_device.set_triggers([
+    {
+        "property": "power",
+        "delta": 5,
+        "id": "time_id"
+    }
+    ])
+    sample_time = datetime.now(timezone.utc)
+    triggered_sample = edap_device.trigger({"time": sample_time, "power": 10, "energy": 5})
+    triggered_sample = edap_device.trigger({"time": sample_time, "power": 20, "energy": 5})
+    assert triggered_sample.get("duration") == 0
+    assert triggered_sample.get("sample_energy") == 0
+    triggered_sample = edap_device.trigger({"time": sample_time + timedelta(minutes=2), "power": 30, "energy": 25})
+    assert triggered_sample.get("duration") == 120.0
+    assert triggered_sample.get("sample_energy") == 20
+    triggered_sample = edap_device.trigger({"time": None, "power": 40, "energy": None})
+    assert triggered_sample.get("duration") is None
+    assert triggered_sample.get("sample_energy") is None
+    triggered_sample = edap_device.trigger({"time": sample_time + timedelta(minutes=4), "power": 50, "energy": 40})
+    assert triggered_sample.get("duration") is None
+    assert triggered_sample.get("sample_energy") is None
+    triggered_sample = edap_device.trigger({"time": sample_time + timedelta(minutes=5), "power": 60, "energy": 60})
+    assert triggered_sample.get("duration") == 60
+    assert triggered_sample.get("sample_energy") == 20.0
+    triggered_sample = edap_device.trigger({"time": sample_time + timedelta(minutes=6), "power": 40, "energy": 70, "sample_energy": 3.5, "duration": 4})
+    assert triggered_sample.get("duration") == 4
+    assert triggered_sample.get("sample_energy") == 3.5
