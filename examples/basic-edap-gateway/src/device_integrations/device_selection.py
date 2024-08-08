@@ -4,6 +4,7 @@ from edap import EdapDevice, EdapSample, Trigger
 
 from src.DeviceConnection import DeviceConnection
 from src.device_integrations.pixii_battery import PixiiEdapBattery, PixiiBatteryConnection
+from src.device_integrations.sungrow_battery import SungrowEdapBattery, SungrowBatteryConnection
 from src.device_integrations.freq_meter import FrequencyMeterEdap, FrequencyMeterConnection
 from src.dummy.DummyEdapBattery import DummyEdapBattery
 from src.dummy.DummyDeviceConnection import DummyDeviceConnection
@@ -13,6 +14,10 @@ def get_edap_device(mediator, event_loop: asyncio.AbstractEventLoop) -> tuple[De
     """Return an EDAP device instance, based on the environment variable."""
     device_model = os.environ.get("DEVICE_MODEL", "dummy")
 
+    if device_model == "sungrow_battery":
+        return (
+            SungrowBatteryConnection(mediator, event_loop),
+            SungrowEdapBattery(mediator))
     if device_model == "pixii_battery":
         return (
             PixiiBatteryConnection(mediator, event_loop),
