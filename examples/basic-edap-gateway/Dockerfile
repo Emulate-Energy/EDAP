@@ -3,7 +3,7 @@ FROM python:3.10-slim-bookworm
 
 # Install dumb-init and clean up apt leftovers
 RUN apt-get update && apt-get install -y --no-install-recommends \
-       dumb-init git openssh-client make arp-scan \
+       dumb-init git openssh-client make arp-scan iproute2 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create least-privilege group and user
@@ -14,6 +14,7 @@ RUN mkdir -p /usr/share/sample-data/
 RUN chown 999 /usr/share/sample-data/
 
 WORKDIR /emulate/edapgateway
+# CMD network_scan.bash
 
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -21,8 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./ ./
 
 # USER 999
-
-CMD ["arp-scan", "--localnet", "--interface", "eth0" ">", "network_scan.txt"]
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["python", "main.py"]

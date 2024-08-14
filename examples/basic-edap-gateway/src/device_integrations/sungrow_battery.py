@@ -40,6 +40,10 @@ class SungrowBatteryConnection(DeviceConnection):
 
     def __init__(self, mediator, event_loop: asyncio.AbstractEventLoop):
         super().__init__(mediator, event_loop)
+        logging.info({
+            "message": "Sungrow Battery Connection initialized",
+            "device_ip": device_ip,
+            "device_port": device_port, "slave_id": slave_id})
 
     def connect(self):
         logging.debug({"message": "Connecting to battery"})
@@ -63,11 +67,10 @@ class SungrowBatteryConnection(DeviceConnection):
             else:
                 client.write_register(chargeORdischarge_address, 204, slave_id) # 0xCC for stop
                 client.write_register(chargeORdischarge_address, 204, slave_id) # 0xCC for stop
-            
+
             client.write_register(power_sp_address, int(abs(power)*1000), slave_id)
 
     def _poll(self) -> dict:
-
         with ModbusTcpClient(host=device_ip, port=device_port, slave=slave_id) as client:
             # Read measured power
             power_result = client.read_input_registers(power_address, 1, slave_id)
@@ -82,6 +85,12 @@ class SungrowBatteryConnection(DeviceConnection):
                 soc = None
             else:
                 soc = soc_result.registers[0]/1000 # convert to 0-1 range
+            logging.debug({
+                "message": "Raw Modbus data from battery",
+                "power_result": power_result.registers[0],
+                "power_sign_result": power_sign_result.registers[0],
+                "soc": soc,
+            })
 
         self.power = power
         self.soc = soc

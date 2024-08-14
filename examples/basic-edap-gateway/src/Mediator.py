@@ -4,6 +4,8 @@ from typing import Any, Literal
 import logging
 from datetime import datetime, timezone
 
+from edap import EdapDevice
+
 from src.ConnectionManager import ConnectionManager
 from src.DeviceConnection import DeviceConnection
 from src.dummy.DummyDeviceConnection import DummyDeviceConnection
@@ -21,7 +23,7 @@ class Mediator:
     _event_loop: asyncio.AbstractEventLoop
     connection_manager: ConnectionManager
     device_connection: DeviceConnection
-    device: DummyEdapBattery
+    device: EdapDevice
 
     def __init__(self, event_loop: asyncio.AbstractEventLoop):
         self._event_loop = event_loop
@@ -32,8 +34,13 @@ class Mediator:
 
         self.device_connection = connection
         self.device = device
-        # self.device_connection = DummyDeviceConnection(self, event_loop)
-        # self.device = DummyEdapBattery(self)
+
+        # put a default 10s time trigger for testing
+        self.device.set_triggers([{
+            "id": "time",
+            "property": "time",
+            "delta": 10
+        }])
 
         self.freq_loop = None
         self.mqqt_loop = None
@@ -46,7 +53,7 @@ class Mediator:
         match event:
             case "trigger_activated":
                 await self.connection_manager.send_to_proxy(data)
-                logging.debug({"message": "Trigger activated", "trigger": data})
+                logging.info({"message": "Trigger activated", "trigger": data})
             case "command_received":
                 self.handle_commands(data)
             case "sample_received":
@@ -108,15 +115,8 @@ class Mediator:
         self.connection_manager.start()
         self.device_connection.start()
 
-        # temporary code for testing purposes
-        self.freq_loop = self._event_loop.create_task(read_frequency_loop())
-        self.mqqt_loop = self._event_loop.create_task(mqtt_publish_loop())
-
     async def stop(self):
         """Stop the different components of the mediator."""
         logging.info("Shutting down the Edap gateway...")
         await self.connection_manager.stop()
         self.device_connection.stop()
-
-        self.freq_loop.cancel()
-        self.mqqt_loop.cancel()

@@ -13,7 +13,7 @@ from edap import EdapDevice, EdapSample, Trigger
 
 from src.DeviceConnection import DeviceConnection
 # IP address and port of the Modbus TCP device
-DEVICE_IP = '192.168.10.20'  # Replace with the actual IP address
+DEVICE_IP = os.environ.get("DEVICE_IP", "192.168.10.20")
 DEVICE_PORT = 502
 
 # Addresses of the registers
@@ -33,12 +33,17 @@ class PixiiBatteryConnection(DeviceConnection):
 
     def __init__(self, mediator, event_loop: asyncio.AbstractEventLoop):
         super().__init__(mediator, event_loop)
+        logging.info({
+            "message": "Pixii Battery Connection initialized",
+            "device_ip": DEVICE_IP,
+            "device_port": DEVICE_PORT})
+
 
     def connect(self):
-        logging.debug({"message": "Connecting to frequency meter"})
+        logging.debug({"message": "Connecting to pixii batter"})
 
     def disconnect(self):
-        logging.debug({"message": "Disconnecting from frequency meter"})
+        logging.debug({"message": "Disconnecting from pixii battery"})
 
     def send(self, data):
         logging.debug({"message": "Sending data to battery", "data": data})
