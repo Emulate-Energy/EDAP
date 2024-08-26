@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from edap import EdapDevice, EdapSample, Trigger
 
 from src.DeviceConnection import DeviceConnection
@@ -13,6 +14,7 @@ from src.dummy.DummyDeviceConnection import DummyDeviceConnection
 def get_edap_device(mediator, event_loop: asyncio.AbstractEventLoop) -> tuple[DeviceConnection, EdapDevice]:
     """Return an EDAP device instance, based on the environment variable."""
     device_model = os.environ.get("DEVICE_MODEL", "dummy")
+    logging.debug({"message": f"getting edap device with type: {device_model}"})
 
     if device_model == "sungrow_battery":
         return (

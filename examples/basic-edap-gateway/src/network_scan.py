@@ -16,9 +16,12 @@ def is_ip_address(ip: str) -> bool:
 
 def read_network_scan() -> list[dict]:
     """Read network scan results from file and parse the results."""
-    folder = pathlib.Path(__file__).parent.parent
-    with open(folder / "network_scan.txt", 'r') as file:
-        lines = file.readlines()
+    try:
+        folder = pathlib.Path(__file__).parent.parent
+        with open(folder / "network_scan.txt", 'r') as file:
+            lines = file.readlines()
+    except:
+        return []
 
     results = []
     for line in lines:

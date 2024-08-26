@@ -10,6 +10,7 @@ from pymodbus.payload import BinaryPayloadDecoder
 from edap import EdapDevice, EdapSample, Trigger
 
 from src.DeviceConnection import DeviceConnection
+from src.network_scan import read_network_scan
 
 # IP address and port of the Modbus TCP device
 DEVICE_IP = os.environ.get("DEVICE_IP", "192.168.10.20")
@@ -30,6 +31,10 @@ class FrequencyMeterConnection(DeviceConnection):
 
     def __init__(self, mediator, event_loop: asyncio.AbstractEventLoop):
         super().__init__(mediator, event_loop)
+        logging.info({
+            "message": "Frequency Meter Connection initialized",
+            "device_ip": DEVICE_IP,
+            "device_port": DEVICE_PORT})
         network_devices = read_network_scan()
         if network_devices:
             self.ip = network_devices[0]["ip"]

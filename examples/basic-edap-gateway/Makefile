@@ -14,7 +14,7 @@ run-linux-container-local: build-linux-image
 	edap_gateway:latest
 
 build-pi-image:
-	docker buildx build --builder=arm-builder --platform=linux/arm/v8 -f Dockerfile --load -t edap_basic:latest_arm .
+	docker buildx build --builder=arm-builder --platform=linux/arm/v7 -f Dockerfile --load -t edap_basic:latest_arm .
 
 tag-arm-image: build-pi-image
 	docker tag edap_basic:latest_arm edapter/basic:latest_arm
