@@ -82,12 +82,21 @@ class SungrowBatteryConnection(DeviceConnection):
                 soc = None
             else:
                 soc = soc_result.registers[0]/1000 # convert to 0-1 range
+            # Read measured freq
+            freq_result = client.read_input_registers(grid_frequency_Address, 1, slave_id)
+            if freq_result.isError():
+                soc = None
+            else:
+                freq = freq_result.registers[0]/100 # convert to Hz
+            
 
         self.power = power
         self.soc = soc
+        self.freq = freq
         return {
             "power": self.power,
-            "soc": self.soc
+            "soc": self.soc,
+            "freq": self.freq
         }
 
 
