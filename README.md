@@ -1,5 +1,6 @@
-# EDAP
-EDAP (Energy Device Access Protocol) is a standard developed by Emulate Energy to efficiently control and access energy devices over the cloud with low-latency.
+<img src="https://github.com/Emulate-Energy/EDAP/blob/main/EDAP_logo.svg?raw=true" alt="EDAP" width="400"/>
+<hr/>
+EDAP (Energy Device Aggregation Protocol) is a standard developed by Emulate Energy to efficiently control and access energy devices over the cloud with low-latency.
 
 ## Usage
 The primary way to use this is to implement a concrete subclass of the `EdapDevice` class, which means to implement the logic for generating an EDAP sample; as well as other required methods for logic that is specific to the particular device you want to represent.
