@@ -88,16 +88,18 @@ class EdapDevice(ABC):
         delta_time = trigger.get('delta')
         last_trigger_time = trigger.get('value')
 
-        if isinstance(last_trigger_time, str):
-            try:
-                last_trigger_time = datetime.fromisoformat(last_trigger_time)
-            except ValueError:
-                last_trigger_time = None
-
-        if isinstance(last_trigger_time, (int, float)):
-            last_trigger_time = datetime.fromtimestamp(last_trigger_time, tz=timezone.utc)
-
-        if isinstance(last_trigger_time, datetime) and last_trigger_time.tzinfo is None:
+        if not isinstance(last_trigger_time, datetime):
+            if isinstance(last_trigger_time, str):
+                try:
+                    last_trigger_time = datetime.fromisoformat(last_trigger_time)
+                except ValueError:
+                    last_trigger_time = None
+            elif isinstance(last_trigger_time, (int, float)):
+                try:
+                    last_trigger_time = datetime.fromtimestamp(last_trigger_time, tz=timezone.utc)
+                except (ValueError, TypeError):
+                    last_trigger_time = None
+        elif last_trigger_time.tzinfo is None:
             last_trigger_time = last_trigger_time.replace(tzinfo=timezone.utc)
 
         if isinstance(delta_time, str):
@@ -132,7 +134,7 @@ class EdapDevice(ABC):
                 if self._is_tolerance_triggered(trigger, True):
                     return True
         except Exception as e:
-            logging.error("EdapDevice error: Error processing trigger %s: %s", trigger, e)
+            logging.error("EdapDevice error: Error processing trigger %s: %s", trigger, e, exc_info=True)
 
         return False
 
