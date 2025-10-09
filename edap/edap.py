@@ -1,3 +1,5 @@
+import logging
+from contextlib import suppress
 from typing import TypedDict, Any
 from datetime import datetime, timezone, timedelta
 from copy import deepcopy
@@ -85,24 +87,53 @@ class EdapDevice(ABC):
     def _is_time_triggered(self, sample_time: datetime, trigger: Trigger) -> bool:
         delta_time = trigger.get('delta')
         last_trigger_time = trigger.get('value')
+
+        if isinstance(last_trigger_time, str):
+            try:
+                last_trigger_time = datetime.fromisoformat(last_trigger_time)
+            except ValueError:
+                last_trigger_time = None
+
+        if isinstance(last_trigger_time, (int, float)):
+            last_trigger_time = datetime.fromtimestamp(last_trigger_time, tz=timezone.utc)
+
+        if isinstance(last_trigger_time, datetime) and last_trigger_time.tzinfo is None:
+            last_trigger_time = last_trigger_time.replace(tzinfo=timezone.utc)
+
+        if isinstance(delta_time, str):
+            try:
+                delta_time = float(delta_time)
+            except ValueError:
+                delta_time = None
+
+        delta = timedelta(seconds=float(delta_time)) if delta_time is not None else timedelta(seconds=60)
+
         if last_trigger_time is not None:
-            return sample_time - last_trigger_time >= timedelta(seconds=int(delta_time))
+            with suppress(TypeError):
+                return sample_time - last_trigger_time >= delta
         return True
 
     def _single_trigger_activated(self, sample: EdapSample, trigger: Trigger) -> bool:
-        trigger_property: str = trigger.get('property')
-        if trigger_property == "time":
-            return self._is_time_triggered(sample.get('time'), trigger)
-        value: Any = sample.get(trigger_property) or (sample.get('sensors') or {}).get(trigger_property)
-        if value is not None:
-            tolerance_triggered = self._is_tolerance_triggered(trigger, False)
-            self._property_failures[trigger_property] = 0
-            if tolerance_triggered or self._level_triggered(value, trigger) or self._delta_triggered(value, trigger):
-                return True
-        else:
-            self._property_failures[trigger_property] = self._property_failures.get(trigger_property, 0) + 1
-            if self._is_tolerance_triggered(trigger, True):
-                return True
+        trigger_property: str | None = trigger.get('property')
+        if trigger_property is None:
+            return False
+
+        try:
+            if trigger_property == "time":
+                return self._is_time_triggered(sample.get('time'), trigger)
+            value: Any = sample.get(trigger_property) or (sample.get('sensors') or {}).get(trigger_property)
+            if value is not None:
+                tolerance_triggered = self._is_tolerance_triggered(trigger, False)
+                self._property_failures[trigger_property] = 0
+                if tolerance_triggered or self._level_triggered(value, trigger) or self._delta_triggered(value, trigger):
+                    return True
+            else:
+                self._property_failures[trigger_property] = self._property_failures.get(trigger_property, 0) + 1
+                if self._is_tolerance_triggered(trigger, True):
+                    return True
+        except Exception as e:
+            logging.error("EdapDevice error: Error processing trigger %s: %s", trigger, e)
+
         return False
 
     def _round(self, number: float | None, precision: int = 6) -> float | None:
