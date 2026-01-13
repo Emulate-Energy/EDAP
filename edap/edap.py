@@ -50,13 +50,6 @@ class EdapDevice(ABC):
             self._triggers = []
         else:
             self._triggers = triggers
-        if len(self._triggers) == 0:
-            self._triggers.append(
-                {
-                    "property": "time",
-                    "delta": 3600,
-                    "id": "unset_time"
-                })
 
     def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
         if "delta" not in trigger:
