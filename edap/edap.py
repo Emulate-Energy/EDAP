@@ -10,8 +10,6 @@ class EdapSample(TypedDict):
     time: datetime
     power: float
     energy: float | None
-    sample_energy: float | None
-    duration: int
     sensors: dict
 
 
@@ -195,8 +193,6 @@ class EdapDevice(ABC):
             "time":  sample.get("time"),
             "power": sample.get("power"),
             "energy": sample.get("energy"),
-            "sample_energy": self._get_delta(sample, "sample_energy", "energy"),
-            "duration": self._get_delta(sample, "duration", "time"),
             "triggers": [],
             "sensors": {}
         }
