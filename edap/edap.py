@@ -186,6 +186,7 @@ class EdapDevice(ABC):
                         self._conditions[condition]['value'] = sample.get(condition_property) or sensors.get(condition_property)
 
             # if the trigger tells us to discard the sample, we add a # in front of the trigger id
+            trigger_id = trigger.get("id")
             if trigger.get('discard_sample', False):
                 trigger_id = f"#{trigger_id}"
 
@@ -205,13 +206,6 @@ class EdapDevice(ABC):
                         self._last_sample['sensors'][trigger_sensor] = sensor_value
 
         return deepcopy(self._last_sample)
-
-    def _get_delta(self, sample, prop, calc_prop):
-        if prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None:
-            return sample.get(prop)
-        if calc_prop == "time":
-            return (sample.get("time") - self._last_sample.get("time")).total_seconds()
-        return sample.get(calc_prop,0) - self._last_sample.get(calc_prop,0)
 
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
