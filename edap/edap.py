@@ -7,8 +7,8 @@ from abc import abstractmethod, ABC
 
 class EdapSample(TypedDict):
     triggers: list[str]
-    time: datetime
-    power: float
+    time: datetime | None
+    power: float | None
     energy: float | None
     sensors: dict
 
@@ -26,26 +26,25 @@ Trigger = TypedDict("Trigger", {
     "in": list[int] | list[float] | list[str] | list[bool] | None,
     "greater": int | float | None,
     "less": int | float | None,
-    "conditions": list[str]
-})
+    "conditions": list[str] | None
+}, total=False)
 
 class EdapDevice(ABC):
     """
     Base EdapDevice class. Holds main logic that includes trigger calculations.
     """
     def __init__(self, triggers: list[Trigger] | None = None) -> None:
-        self._triggers: list[Trigger] = triggers or []
+        self._triggers: list[Trigger] = []
         self._last_sample: EdapSample = {
             "energy": 0,
             "power": 0,
             "time": datetime.now(timezone.utc),
             "sensors": {},
-            "triggers": [],
-            "duration": 0,
-            "sample_energy": 0
+            "triggers": []
         }
         self._property_failures: dict[str, int] = {}
         self._conditions: dict[str, Trigger] = {}
+        self.set_triggers(triggers)
 
     def get_triggers(self) -> list[Trigger]:
         return self._triggers
@@ -55,6 +54,7 @@ class EdapDevice(ABC):
             self._triggers = []
         else:
             self._triggers = triggers
+        self._conditions = {}
         for trigger in self._triggers:
             if "condition" in trigger:
                 self._conditions[trigger.get("condition")] = trigger
@@ -119,11 +119,11 @@ class EdapDevice(ABC):
     def _condition_triggered(self, value: Any, trigger: Trigger) -> bool:
         if not ("greater" in trigger or "less" in trigger or "in" in trigger):
             return False
-        if value < trigger.get("greater", value):
+        if trigger.get("greater",None) is not None and value < trigger.get("greater"):
             return False
-        if value > trigger.get("less", value):
+        if trigger.get("less", None) is not None and value > trigger.get("less"):
             return False
-        if value not in trigger.get("in",[value]):
+        if trigger.get("in", None) is not None and value not in trigger.get("in"):
             return False
         return True
 
@@ -178,7 +178,7 @@ class EdapDevice(ABC):
             trigger_property = trigger.get('property')
 
             # update the values of activated triggers
-            trigger['value'] = sample.get(trigger_property) or sensors.get(trigger_property)
+            trigger['value'] = sample.get(trigger_property, sensors.get(trigger_property))
             if "conditions" in trigger:
                 for condition in trigger.get("conditions"):
                     condition_property =  self._conditions.get(condition, {}).get('property', None)
@@ -186,7 +186,6 @@ class EdapDevice(ABC):
                         self._conditions[condition]['value'] = sample.get(condition_property) or sensors.get(condition_property)
 
             # if the trigger tells us to discard the sample, we add a # in front of the trigger id
-            trigger_id = trigger.get('id', f'unset_{trigger_property}')
             if trigger.get('discard_sample', False):
                 trigger_id = f"#{trigger_id}"
 
@@ -217,7 +216,7 @@ class EdapDevice(ABC):
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
         Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
-        will be filled in by the various activated triggers. Also "sample_energy" and "duration" will be calcualted if they are not provided.
+        will be filled in by the various activated triggers.
         If any calculations involving values from the last sample are needed, this method needs to be overrriden. Any sensors added here will always
         be present in the triggered EDAP sample.
         """

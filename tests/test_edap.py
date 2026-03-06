@@ -202,11 +202,11 @@ def test_condition_special_triggers():
     ])
     assert edap_device.trigger({"power": 7}) is None
     assert edap_device.trigger({"power": 11}) is None
-    assert edap_device.trigger({"power": 14}).get("triggers") == ['delta_1'] # both c1 and c2 satisfied and inital delta
+    assert edap_device.trigger({"power": 14}).get("triggers") == ['delta_1'] # both c1 and c2 satisfied and initial delta
     assert edap_device.trigger({"power": 15}) is None
     assert edap_device.trigger({"power": 18}) is None
     assert edap_device.trigger({"power": 20}).get("triggers") == ['delta_1','levels_2'] # both c1 and c2 satisfied
-    assert edap_device.trigger({"power": 21}) is None #c1 and c2 satified but not delta
+    assert edap_device.trigger({"power": 21}) is None #c1 and c2 satisfied but not delta
     assert edap_device.trigger({"power": 25}) is None
     assert edap_device.trigger({"power": 35}).get("triggers") == ['levels_2']
 
