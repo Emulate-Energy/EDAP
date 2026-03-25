@@ -7,40 +7,44 @@ from abc import abstractmethod, ABC
 
 class EdapSample(TypedDict):
     triggers: list[str]
-    time: datetime
-    power: float
+    time: datetime | None
+    power: float | None
     energy: float | None
-    sample_energy: float | None
-    duration: int
     sensors: dict
 
 
-class Trigger(TypedDict):
-    id: str | None
-    property: str | None
-    sensors: list[str] | None
-    delta: int | float | None
-    levels: list[float] | None
-    tolerance: int | None
-    value: Any
-    discard_sample: bool | None
+Trigger = TypedDict("Trigger", {
+    "id": str | None,
+    "condition": str | None,
+    "property": str | None,
+    "sensors": list[str] | None,
+    "delta": int | float | None,
+    "levels": list[float] | None,
+    "tolerance": int | None,
+    "value": Any,
+    "discard_sample": bool | None,
+    "in": list[int] | list[float] | list[str] | list[bool] | None,
+    "greater": int | float | None,
+    "less": int | float | None,
+    "conditions": list[str] | None
+}, total=False)
 
 class EdapDevice(ABC):
     """
     Base EdapDevice class. Holds main logic that includes trigger calculations.
     """
     def __init__(self, triggers: list[Trigger] | None = None) -> None:
-        self._triggers: list[Trigger] = triggers or []
+        self._triggers: list[Trigger] = []
         self._last_sample: EdapSample = {
             "energy": 0,
             "power": 0,
             "time": datetime.now(timezone.utc),
             "sensors": {},
-            "triggers": [],
-            "duration": 0,
-            "sample_energy": 0
+            "triggers": []
         }
         self._property_failures: dict[str, int] = {}
+        self._conditions: dict[str, Trigger] = {}
+        self.set_triggers(triggers)
 
     def get_triggers(self) -> list[Trigger]:
         return self._triggers
@@ -50,6 +54,10 @@ class EdapDevice(ABC):
             self._triggers = []
         else:
             self._triggers = triggers
+        self._conditions = {}
+        for trigger in self._triggers:
+            if "condition" in trigger:
+                self._conditions[trigger.get("condition")] = trigger
 
     def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
         if "delta" not in trigger:
@@ -108,16 +116,33 @@ class EdapDevice(ABC):
                 return sample_time - last_trigger_time >= delta
         return True
 
+    def _condition_triggered(self, value: Any, trigger: Trigger) -> bool:
+        if not ("greater" in trigger or "less" in trigger or "in" in trigger):
+            return False
+        if trigger.get("greater",None) is not None and value < trigger.get("greater"):
+            return False
+        if trigger.get("less", None) is not None and value > trigger.get("less"):
+            return False
+        if trigger.get("in", None) is not None and value not in trigger.get("in"):
+            return False
+        return True
+
     def _single_trigger_activated(self, sample: EdapSample, trigger: Trigger) -> bool:
         trigger_property: str | None = trigger.get('property')
         if trigger_property is None:
             return False
-
         try:
+            if "conditions" in trigger:
+                for condition in trigger.get("conditions"):
+                    if condition in self._conditions and not self._single_trigger_activated(sample, self._conditions.get(condition)):
+                        return False
+
             if trigger_property == "time":
                 return self._is_time_triggered(sample.get('time'), trigger)
             value: Any = sample.get(trigger_property) or (sample.get('sensors') or {}).get(trigger_property)
             if value is not None:
+                if "condition" in trigger and self._condition_triggered(value, trigger):
+                    return True
                 tolerance_triggered = self._is_tolerance_triggered(trigger, False)
                 self._property_failures[trigger_property] = 0
                 if tolerance_triggered or self._level_triggered(value, trigger) or self._delta_triggered(value, trigger):
@@ -140,7 +165,7 @@ class EdapDevice(ABC):
         full_activated_triggers: list[Trigger] = []
 
         for trigger in self._triggers:
-            if self._single_trigger_activated(sample, trigger):
+            if "id" in trigger and self._single_trigger_activated(sample, trigger):
                 full_activated_triggers.append(trigger)
 
         if len(full_activated_triggers) == 0:
@@ -153,10 +178,15 @@ class EdapDevice(ABC):
             trigger_property = trigger.get('property')
 
             # update the values of activated triggers
-            trigger['value'] = sample.get(trigger_property) or sensors.get(trigger_property)
+            trigger['value'] = sample.get(trigger_property, sensors.get(trigger_property))
+            if "conditions" in trigger:
+                for condition in trigger.get("conditions"):
+                    condition_property =  self._conditions.get(condition, {}).get('property', None)
+                    if condition_property:
+                        self._conditions[condition]['value'] = sample.get(condition_property) or sensors.get(condition_property)
 
             # if the trigger tells us to discard the sample, we add a # in front of the trigger id
-            trigger_id = trigger.get('id', f'unset_{trigger_property}')
+            trigger_id = trigger.get("id")
             if trigger.get('discard_sample', False):
                 trigger_id = f"#{trigger_id}"
 
@@ -177,17 +207,10 @@ class EdapDevice(ABC):
 
         return deepcopy(self._last_sample)
 
-    def _get_delta(self, sample, prop, calc_prop):
-        if prop in sample or sample.get(calc_prop) is None or self._last_sample.get(calc_prop) is None:
-            return sample.get(prop)
-        if calc_prop == "time":
-            return (sample.get("time") - self._last_sample.get("time")).total_seconds()
-        return sample.get(calc_prop,0) - self._last_sample.get(calc_prop,0)
-
     def generate_sample(self, sample: EdapSample) -> EdapSample:
         """
         Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
-        will be filled in by the various activated triggers. Also "sample_energy" and "duration" will be calcualted if they are not provided.
+        will be filled in by the various activated triggers.
         If any calculations involving values from the last sample are needed, this method needs to be overrriden. Any sensors added here will always
         be present in the triggered EDAP sample.
         """
@@ -195,8 +218,6 @@ class EdapDevice(ABC):
             "time":  sample.get("time"),
             "power": sample.get("power"),
             "energy": sample.get("energy"),
-            "sample_energy": self._get_delta(sample, "sample_energy", "energy"),
-            "duration": self._get_delta(sample, "duration", "time"),
             "triggers": [],
             "sensors": {}
         }
