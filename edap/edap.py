@@ -78,14 +78,20 @@ class EdapDevice(ABC):
             return current_sample_value != trigger_value
         return abs(current_sample_value - trigger_value) > delta
 
-    def _level_triggered(self, value: float, trigger: Trigger) -> bool:
-        levels: list[float] = trigger.get('levels') or []
-        trigger_property = trigger.get('property')
-        if not trigger_property:
+    @staticmethod
+    def _level_triggered(sample_value: _MeasurementValue, trigger: Trigger) -> bool:
+        if "levels" not in trigger:
             return False
-        last_value: float = self._last_sample.get(trigger_property) or (self._last_sample.get("sensors") or {}).get(trigger_property) or 0
+        if "value" not in trigger:
+            return True
+        if not isinstance(sample_value, float | int):
+            return False
+        trigger_value = trigger["value"]
+        if not isinstance(trigger_value, float | int):
+            return False
+        levels: list[float] = trigger["levels"] or []
         for level in levels:
-            if last_value > level > value or last_value < level < value:
+            if trigger_value > level > sample_value or trigger_value < level < sample_value:
                 return True
         return False
 

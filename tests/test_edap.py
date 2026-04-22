@@ -162,8 +162,7 @@ def test_level_triggered():
     }
     ])
 
-    # no trigger since we assumt to start at 0
-    assert edap_device.trigger({"power": 9}) is None
+    assert edap_device.trigger({"power": 9}) is not None
 
     # level 10 activated
     assert edap_device.trigger({"power": 11}) is not None
@@ -200,7 +199,7 @@ def test_condition_special_triggers():
             "in": [5,10,11,12,13,14,15,20,21,25]
         },
     ])
-    assert edap_device.trigger({"power": 7}) is None
+    assert edap_device.trigger({"power": 7}).get("triggers") == ["levels_2"]
     assert edap_device.trigger({"power": 11}) is None
     assert edap_device.trigger({"power": 14}).get("triggers") == ['delta_1'] # both c1 and c2 satisfied and initial delta
     assert edap_device.trigger({"power": 15}) is None
