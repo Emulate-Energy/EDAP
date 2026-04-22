@@ -63,7 +63,9 @@ class EdapDevice(ABC):
     def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
         if "delta" not in trigger:
             return False
-        delta = trigger.get('delta')
+        if "value" not in trigger:
+            return True
+        delta = trigger["delta"]
         if delta is None or delta == 0:
             return value != trigger.get('value')
         return abs(value-(trigger.get('value') or 0)) > delta
