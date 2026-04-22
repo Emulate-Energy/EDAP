@@ -102,7 +102,10 @@ class EdapDevice(ABC):
             return (exact_equals and failures == tolerance) or (not exact_equals and failures >= tolerance)
         return False
 
-    def _is_time_triggered(self, sample_time: datetime, trigger: Trigger) -> bool:
+    @staticmethod
+    def _is_time_triggered(sample_time: datetime | None, trigger: Trigger) -> bool:
+        if sample_time is None:
+            return False
         delta_time = trigger.get('delta')
         last_trigger_time = trigger.get('value')
 
