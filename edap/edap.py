@@ -29,6 +29,8 @@ Trigger = TypedDict("Trigger", {
     "conditions": list[str] | None
 }, total=False)
 
+_MeasurementValue = int | float | str | bool | datetime | None
+
 class EdapDevice(ABC):
     """
     Base EdapDevice class. Holds main logic that includes trigger calculations.
@@ -60,15 +62,21 @@ class EdapDevice(ABC):
             if condition is not None:
                 self._conditions[condition] = trigger
 
-    def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
+    @staticmethod
+    def _delta_triggered(current_sample_value: _MeasurementValue, trigger: Trigger) -> bool:
         if "delta" not in trigger:
             return False
         if "value" not in trigger:
             return True
+        if not isinstance(current_sample_value, float | int):
+            return False
+        trigger_value = trigger["value"]
+        if not isinstance(trigger_value, float | int):
+            return False
         delta = trigger["delta"]
         if delta is None or delta == 0:
-            return value != trigger.get('value')
-        return abs(value-(trigger.get('value') or 0)) > delta
+            return current_sample_value != trigger_value
+        return abs(current_sample_value - trigger_value) > delta
 
     def _level_triggered(self, value: float, trigger: Trigger) -> bool:
         levels: list[float] = trigger.get('levels') or []
