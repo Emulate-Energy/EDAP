@@ -56,8 +56,9 @@ class EdapDevice(ABC):
             self._triggers = triggers
         self._conditions = {}
         for trigger in self._triggers:
-            if "condition" in trigger:
-                self._conditions[trigger.get("condition")] = trigger
+            condition = trigger.get("condition")
+            if condition is not None:
+                self._conditions[condition] = trigger
 
     def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
         if "delta" not in trigger:
