@@ -183,10 +183,6 @@ class EdapDevice(ABC):
 
         return False
 
-    def _round(self, number: float | None, precision: int = 6) -> float | None:
-        # doesn't really belong in the class, to be moved in a util file
-        return None if number is None else round(number, precision)
-
     def trigger(self, sample: EdapSample) -> EdapSample | None:
         """If some triggers were activated, return modified sample with trigger list inside, otherwise, return None"""
         full_activated_triggers: list[Trigger] = []
