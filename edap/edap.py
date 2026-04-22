@@ -96,14 +96,14 @@ class EdapDevice(ABC):
     def _level_triggered(sample_value: _MeasurementValue, trigger: Trigger) -> bool:
         if "levels" not in trigger:
             return False
-        if "value" not in trigger:
-            return True
         if not isinstance(sample_value, float | int):
             return False
+        levels: list[float] = trigger["levels"] or []
+        if "value" not in trigger:
+            return sample_value not in levels
         trigger_value = trigger["value"]
         if not isinstance(trigger_value, float | int):
             return False
-        levels: list[float] = trigger["levels"] or []
         for level in levels:
             if trigger_value > level > sample_value or trigger_value < level < sample_value:
                 return True

@@ -313,3 +313,19 @@ def test_level_trigger_is_not_reset_by_other_triggers_triggering() -> None:
     assert sample_2 is not None
     assert sample_1["triggers"] == ["delta_1"]
     assert sample_2["triggers"] == ["levels_1"]
+
+def test_level_trigger_triggers_after_initial_value_on_level() -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [{"property": "power", "levels": [10.0], "id": "levels_1"}]
+    )
+
+    # Act
+    sample_1 = edap_device.trigger({"power": 10.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_2 = edap_device.trigger({"power": 11.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_3 = edap_device.trigger({"power": 9.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Assert
+    assert sample_1 is None
+    assert sample_2 is not None
+    assert sample_3 is not None
