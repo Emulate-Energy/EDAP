@@ -233,7 +233,8 @@ class EdapDevice(ABC):
 
         return deepcopy(self._last_sample)
 
-    def generate_sample(self, sample: EdapSample) -> EdapSample:
+    @staticmethod
+    def generate_sample(sample: EdapSample) -> EdapSample:
         """
         Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
         will be filled in by the various activated triggers.
