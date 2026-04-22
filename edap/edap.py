@@ -163,8 +163,8 @@ class EdapDevice(ABC):
             return False
         try:
             if "conditions" in trigger:
-                for condition in trigger.get("conditions"):
-                    if condition in self._conditions and not self._single_trigger_activated(sample, self._conditions.get(condition)):
+                for condition in trigger.get("conditions") or []:
+                    if condition in self._conditions and not self._single_trigger_activated(sample, self._conditions.get(condition, {})):
                         return False
 
             if trigger_property == "time":
@@ -217,7 +217,8 @@ class EdapDevice(ABC):
                 trigger_id = f"#{trigger_id}"
 
             # add ids of activated triggers to EDAP sample
-            self._last_sample['triggers'].append(trigger_id)
+            if trigger_id:
+                self._last_sample['triggers'].append(trigger_id)
 
             if len(self._last_sample['sensors']) == len(sensors):
                 continue
