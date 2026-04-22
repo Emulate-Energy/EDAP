@@ -133,14 +133,24 @@ class EdapDevice(ABC):
                 return sample_time - last_trigger_time >= delta
         return True
 
-    def _condition_triggered(self, value: Any, trigger: Trigger) -> bool:
+    @staticmethod
+    def _condition_triggered(current_sample_value: _MeasurementValue, trigger: Trigger) -> bool:
         if not ("greater" in trigger or "less" in trigger or "in" in trigger):
             return False
-        if trigger.get("greater",None) is not None and value < trigger.get("greater"):
+        limit_greater = trigger.get("greater")
+        if limit_greater is not None and (
+            not isinstance(current_sample_value, float | int)
+            or current_sample_value <= limit_greater
+        ):
             return False
-        if trigger.get("less", None) is not None and value > trigger.get("less"):
+        limit_less = trigger.get("less")
+        if limit_less is not None and (
+            not isinstance(current_sample_value, float | int)
+            or current_sample_value >= limit_less
+        ):
             return False
-        if trigger.get("in", None) is not None and value not in trigger.get("in"):
+        values_in = trigger.get("in")
+        if values_in is not None and current_sample_value not in values_in:
             return False
         return True
 
