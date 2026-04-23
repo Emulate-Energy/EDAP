@@ -67,10 +67,10 @@ class EdapDevice(ABC):
             return False
         if "value" not in trigger:
             return True
-        if not isinstance(current_sample_value, float | int):
+        if not isinstance(current_sample_value, float | int | bool):
             return False
         trigger_value = trigger["value"]
-        if not isinstance(trigger_value, float | int):
+        if not isinstance(trigger_value, float | int | bool):
             return False
         delta = trigger["delta"]
         if delta is None or delta == 0:
