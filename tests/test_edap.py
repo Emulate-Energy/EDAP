@@ -1,9 +1,11 @@
 from datetime import datetime, timezone, timedelta
-from tests.utils import MockEdapDevice
+from edap.edap import EdapDevice
+
+import pytest
 
 
 def test_get_set_triggers():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     assert len(edap_device.get_triggers()) == 0
     edap_device.set_triggers([
         {
@@ -29,7 +31,7 @@ def test_get_set_triggers():
     assert len(edap_device.get_triggers()) == 0
 
 def test_single_trigger():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
     {
         "property": "power",
@@ -52,7 +54,7 @@ def test_single_trigger():
     assert edap_device.get_triggers()[0]['value'] == 23
 
 def test_multiple_triggers():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
         {
             "id": "power_1",
@@ -73,7 +75,7 @@ def test_multiple_triggers():
     assert triggered_sample.get('triggers') == ["power_1", "temperature_1"]
 
 def test_time_trigger():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     first_sample_time = datetime.now(timezone.utc)
     edap_device.set_triggers([
     {
@@ -102,7 +104,7 @@ def test_time_trigger():
     assert triggered_sample.get("triggers")[1] == "power_id"
 
 def test_time_trigger__value_is_none():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
     {
         "property": "time",
@@ -119,7 +121,7 @@ def test_time_trigger__value_is_none():
 
 
 def test_tolerance_trigger():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
     {
         "property": "power",
@@ -148,7 +150,7 @@ def test_tolerance_trigger():
 
 
 def test_level_triggered():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
     {
         "id": "levels_1",
@@ -162,8 +164,7 @@ def test_level_triggered():
     }
     ])
 
-    # no trigger since we assumt to start at 0
-    assert edap_device.trigger({"power": 9}) is None
+    assert edap_device.trigger({"power": 9}) is not None
 
     # level 10 activated
     assert edap_device.trigger({"power": 11}) is not None
@@ -175,7 +176,7 @@ def test_level_triggered():
     assert edap_device.trigger({"power": 18}) is not None
 
 def test_condition_special_triggers():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
         {
             "id": "delta_1",
@@ -200,7 +201,7 @@ def test_condition_special_triggers():
             "in": [5,10,11,12,13,14,15,20,21,25]
         },
     ])
-    assert edap_device.trigger({"power": 7}) is None
+    assert edap_device.trigger({"power": 7}).get("triggers") == ["levels_2"]
     assert edap_device.trigger({"power": 11}) is None
     assert edap_device.trigger({"power": 14}).get("triggers") == ['delta_1'] # both c1 and c2 satisfied and initial delta
     assert edap_device.trigger({"power": 15}) is None
@@ -211,7 +212,7 @@ def test_condition_special_triggers():
     assert edap_device.trigger({"power": 35}).get("triggers") == ['levels_2']
 
 def test_condition_standard_triggers():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
         {
             "id": "delta_1",
@@ -249,7 +250,7 @@ def test_condition_standard_triggers():
     assert edap_device.trigger({"power": 13, "sensors": {"active": True, "connector": "con_2", "temp":26}}) is not None
 
 def test_default_generate_sample():
-    edap_device = MockEdapDevice()
+    edap_device = EdapDevice()
     edap_device.set_triggers([
     {
         "property": "power",
@@ -274,3 +275,77 @@ def test_default_generate_sample():
     triggered_sample = edap_device.trigger({"time": sample_time + timedelta(minutes=5), "power": 60, "energy": 60})
     assert triggered_sample.get("power") == 60
     assert triggered_sample.get("energy") == 60
+
+def test_one_level_trigger_triggering_does_not_reset_other_level_triggers() -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [
+            {"property": "power", "delta": 1.0, "id": "delta_1"},
+            {"property": "power", "delta": 2.0, "id": "delta_2"},
+        ]
+    )
+    edap_device.trigger({"power": 0.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Act
+    sample_1 = edap_device.trigger({"power": 1.1, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_2 = edap_device.trigger({"power": 2.2, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Assert
+    assert sample_1 is not None
+    assert sample_2 is not None
+    assert sample_1["triggers"] == ["delta_1"]
+    assert sample_2["triggers"] == ["delta_1", "delta_2"]
+
+def test_level_trigger_is_not_reset_by_other_triggers_triggering() -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [
+            {"property": "power", "delta": 1.0, "id": "delta_1"},
+            {"property": "power", "levels": [10.0], "id": "levels_1"},
+        ]
+    )
+    edap_device.trigger({"power": 0.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Act
+    sample_1 = edap_device.trigger({"power": 10.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_2 = edap_device.trigger({"power": 10.1, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Assert
+    assert sample_1 is not None
+    assert sample_2 is not None
+    assert sample_1["triggers"] == ["delta_1"]
+    assert sample_2["triggers"] == ["levels_1"]
+
+def test_level_trigger_triggers_after_initial_value_on_level() -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [{"property": "power", "levels": [10.0], "id": "levels_1"}]
+    )
+
+    # Act
+    sample_1 = edap_device.trigger({"power": 10.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_2 = edap_device.trigger({"power": 11.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+    sample_3 = edap_device.trigger({"power": 9.0, "triggers": [], "time": None, "sensors": {}, "energy": None})
+
+    # Assert
+    assert sample_1 is None
+    assert sample_2 is not None
+    assert sample_3 is not None
+
+@pytest.mark.parametrize("delta_value", [None, 0, 0.1])
+def test_delta_trigger_triggers_on_bool_change(delta_value: float | int | None) -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [{"property": "online", "delta": delta_value, "id": "delta_1"}]
+    )
+    edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"online": False}, "energy": None})
+
+    # Act
+    sample_1 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"online": False}, "energy": None})
+    sample_2 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"online": True}, "energy": None})
+    sample_3 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"online": False}, "energy": None})
+
+    # Assert
+    assert sample_1 is None
+    assert sample_2 is not None
+    assert sample_3 is not None

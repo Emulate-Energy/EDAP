@@ -1,9 +1,9 @@
 import logging
 from contextlib import suppress
-from typing import TypedDict, Any
+from typing import NamedTuple, TypedDict, Any
 from datetime import datetime, timezone, timedelta
 from copy import deepcopy
-from abc import abstractmethod, ABC
+from abc import ABC
 
 class EdapSample(TypedDict):
     triggers: list[str]
@@ -29,19 +29,20 @@ Trigger = TypedDict("Trigger", {
     "conditions": list[str] | None
 }, total=False)
 
+
+_MeasurementValue = int | float | str | bool | datetime | None
+
+class _SampleValue(NamedTuple):
+    exists: bool
+    value: _MeasurementValue
+
 class EdapDevice(ABC):
     """
     Base EdapDevice class. Holds main logic that includes trigger calculations.
     """
     def __init__(self, triggers: list[Trigger] | None = None) -> None:
         self._triggers: list[Trigger] = []
-        self._last_sample: EdapSample = {
-            "energy": 0,
-            "power": 0,
-            "time": datetime.now(timezone.utc),
-            "sensors": {},
-            "triggers": []
-        }
+        self._last_sample: EdapSample | None = None
         self._property_failures: dict[str, int] = {}
         self._conditions: dict[str, Trigger] = {}
         self.set_triggers(triggers)
@@ -56,36 +57,69 @@ class EdapDevice(ABC):
             self._triggers = triggers
         self._conditions = {}
         for trigger in self._triggers:
-            if "condition" in trigger:
-                self._conditions[trigger.get("condition")] = trigger
+            condition = trigger.get("condition")
+            if condition is not None:
+                self._conditions[condition] = trigger
 
-    def _delta_triggered(self, value: Any, trigger: Trigger) -> bool:
+    @staticmethod
+    def _delta_triggered(current_sample_value: _MeasurementValue, trigger: Trigger) -> bool:
         if "delta" not in trigger:
             return False
-        delta = trigger.get('delta')
-        if delta is None or delta == 0:
-            return value != trigger.get('value')
-        return abs(value-(trigger.get('value') or 0)) > delta
-
-    def _level_triggered(self, value: float, trigger: Trigger) -> bool:
-        levels: list[float] = trigger.get('levels') or []
-        trigger_property = trigger.get('property')
-        if not trigger_property:
+        if "value" not in trigger:
+            return True
+        if not isinstance(current_sample_value, float | int | bool):
             return False
-        last_value: float = self._last_sample.get(trigger_property) or (self._last_sample.get("sensors") or {}).get(trigger_property) or 0
+        trigger_value = trigger["value"]
+        if not isinstance(trigger_value, float | int | bool):
+            return False
+        delta = trigger["delta"]
+        if delta is None or delta == 0:
+            return current_sample_value != trigger_value
+        return abs(current_sample_value - trigger_value) > delta
+
+    @staticmethod
+    def _get_sample_value(sample: EdapSample | None, key: str | None) -> _SampleValue:
+        if sample is None or key is None:
+            return _SampleValue(False, None)
+        if key not in sample:
+            sensors = sample.get('sensors', {})
+            if key not in sensors:
+                return _SampleValue(False, None)
+            value = sensors[key]
+        else:
+            value = sample.get(key)
+        if not isinstance(value, _MeasurementValue):
+            return _SampleValue(False, None)
+        return _SampleValue(True, value)
+
+    @staticmethod
+    def _level_triggered(sample_value: _MeasurementValue, trigger: Trigger) -> bool:
+        if "levels" not in trigger:
+            return False
+        if not isinstance(sample_value, float | int):
+            return False
+        levels: list[float] = trigger["levels"] or []
+        if "value" not in trigger:
+            return sample_value not in levels
+        trigger_value = trigger["value"]
+        if not isinstance(trigger_value, float | int):
+            return False
         for level in levels:
-            if last_value > level > value or last_value < level < value:
+            if trigger_value > level > sample_value or trigger_value < level < sample_value:
                 return True
         return False
 
-    def _is_tolerance_triggered(self, trigger: Trigger, exact_equals: bool) -> bool:
+    @staticmethod
+    def _is_tolerance_triggered(trigger: Trigger, failures: int | None, exact_equals: bool) -> bool:
         tolerance: int | None = trigger.get('tolerance')
-        failures: int | None = self._property_failures.get(trigger.get('property'))
         if tolerance is not None and failures is not None:
             return (exact_equals and failures == tolerance) or (not exact_equals and failures >= tolerance)
         return False
 
-    def _is_time_triggered(self, sample_time: datetime, trigger: Trigger) -> bool:
+    @staticmethod
+    def _is_time_triggered(sample_time: datetime | None, trigger: Trigger) -> bool:
+        if sample_time is None:
+            return False
         delta_time = trigger.get('delta')
         last_trigger_time = trigger.get('value')
 
@@ -116,49 +150,56 @@ class EdapDevice(ABC):
                 return sample_time - last_trigger_time >= delta
         return True
 
-    def _condition_triggered(self, value: Any, trigger: Trigger) -> bool:
+    @staticmethod
+    def _condition_triggered(current_sample_value: _MeasurementValue, trigger: Trigger) -> bool:
         if not ("greater" in trigger or "less" in trigger or "in" in trigger):
             return False
-        if trigger.get("greater",None) is not None and value < trigger.get("greater"):
+        limit_greater = trigger.get("greater")
+        if limit_greater is not None and (
+            not isinstance(current_sample_value, float | int)
+            or current_sample_value <= limit_greater
+        ):
             return False
-        if trigger.get("less", None) is not None and value > trigger.get("less"):
+        limit_less = trigger.get("less")
+        if limit_less is not None and (
+            not isinstance(current_sample_value, float | int)
+            or current_sample_value >= limit_less
+        ):
             return False
-        if trigger.get("in", None) is not None and value not in trigger.get("in"):
+        values_in = trigger.get("in")
+        if values_in is not None and current_sample_value not in values_in:
             return False
         return True
 
-    def _single_trigger_activated(self, sample: EdapSample, trigger: Trigger) -> bool:
+    def _single_trigger_activated(self, current_sample: EdapSample, trigger: Trigger) -> bool:
         trigger_property: str | None = trigger.get('property')
         if trigger_property is None:
             return False
         try:
             if "conditions" in trigger:
-                for condition in trigger.get("conditions"):
-                    if condition in self._conditions and not self._single_trigger_activated(sample, self._conditions.get(condition)):
+                for condition in trigger.get("conditions") or []:
+                    if condition in self._conditions and not self._single_trigger_activated(current_sample, self._conditions.get(condition, {})):
                         return False
 
             if trigger_property == "time":
-                return self._is_time_triggered(sample.get('time'), trigger)
-            value: Any = sample.get(trigger_property) or (sample.get('sensors') or {}).get(trigger_property)
-            if value is not None:
-                if "condition" in trigger and self._condition_triggered(value, trigger):
-                    return True
-                tolerance_triggered = self._is_tolerance_triggered(trigger, False)
-                self._property_failures[trigger_property] = 0
-                if tolerance_triggered or self._level_triggered(value, trigger) or self._delta_triggered(value, trigger):
-                    return True
-            else:
+                return self._is_time_triggered(current_sample.get('time'), trigger)
+            current_sample_value = self._get_sample_value(current_sample, trigger_property)
+            if not current_sample_value.exists or current_sample_value.value is None:
                 self._property_failures[trigger_property] = self._property_failures.get(trigger_property, 0) + 1
-                if self._is_tolerance_triggered(trigger, True):
-                    return True
+                return self._is_tolerance_triggered(trigger, self._property_failures[trigger_property], True)
+            if "condition" in trigger and self._condition_triggered(current_sample_value.value, trigger):
+                return True
+            tolerance_triggered = self._is_tolerance_triggered(trigger, self._property_failures.get(trigger_property), False)
+            self._property_failures[trigger_property] = 0
+            return (
+                tolerance_triggered
+                or self._level_triggered(current_sample_value.value, trigger)
+                or self._delta_triggered(current_sample_value.value, trigger)
+            )
         except Exception as e:
             logging.error("EdapDevice error: Error processing trigger %s: %s", trigger, e, exc_info=True)
 
         return False
-
-    def _round(self, number: float | None, precision: int = 6) -> float | None:
-        # doesn't really belong in the class, to be moved in a util file
-        return None if number is None else round(number, precision)
 
     def trigger(self, sample: EdapSample) -> EdapSample | None:
         """If some triggers were activated, return modified sample with trigger list inside, otherwise, return None"""
@@ -178,12 +219,15 @@ class EdapDevice(ABC):
             trigger_property = trigger.get('property')
 
             # update the values of activated triggers
-            trigger['value'] = sample.get(trigger_property, sensors.get(trigger_property))
-            if "conditions" in trigger:
-                for condition in trigger.get("conditions"):
-                    condition_property =  self._conditions.get(condition, {}).get('property', None)
-                    if condition_property:
-                        self._conditions[condition]['value'] = sample.get(condition_property) or sensors.get(condition_property)
+            trigger_value = self._get_sample_value(sample, trigger_property)
+            if trigger_value.exists:
+                trigger['value'] = trigger_value.value
+            for condition in trigger.get("conditions") or []:
+                condition_property =  self._conditions.get(condition, {}).get('property', None)
+                if condition_property:
+                    condition_value = self._get_sample_value(sample, condition_property)
+                    if condition_value.exists:
+                        self._conditions[condition]['value'] = condition_value.value
 
             # if the trigger tells us to discard the sample, we add a # in front of the trigger id
             trigger_id = trigger.get("id")
@@ -191,7 +235,8 @@ class EdapDevice(ABC):
                 trigger_id = f"#{trigger_id}"
 
             # add ids of activated triggers to EDAP sample
-            self._last_sample['triggers'].append(trigger_id)
+            if trigger_id:
+                self._last_sample['triggers'].append(trigger_id)
 
             if len(self._last_sample['sensors']) == len(sensors):
                 continue
@@ -207,7 +252,8 @@ class EdapDevice(ABC):
 
         return deepcopy(self._last_sample)
 
-    def generate_sample(self, sample: EdapSample) -> EdapSample:
+    @staticmethod
+    def generate_sample(sample: EdapSample) -> EdapSample:
         """
         Method for generating base EDAP structure for triggered EDAP samples. The "sensors" and "triggers" properties are empty as these 
         will be filled in by the various activated triggers.
