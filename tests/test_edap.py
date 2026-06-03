@@ -133,19 +133,15 @@ def test_tolerance_trigger():
     ])
 
     triggered_sample = edap_device.trigger({"power": None})
-    # number of failures for power is 1
-    assert triggered_sample is None
-
-    triggered_sample = edap_device.trigger({"power": None})
-    # number of failures for power is 2, tolerance reached, trigger activated
+    # last known value was 20 (not None), now None — value disappeared, trigger activated
     assert triggered_sample is not None
 
     triggered_sample = edap_device.trigger({"power": None})
-    # number of failures for power is 3, but the value is still None, trigger not activated
+    # last known value is now None, still None — no transition, trigger not activated
     assert triggered_sample is None
 
     triggered_sample = edap_device.trigger({"power": 21})
-    # number of failures for power was 3, but the value is present, trigger activated and count is reset
+    # last known value was None, now 21 — value appeared, trigger activated
     assert triggered_sample is not None
 
 
@@ -331,6 +327,122 @@ def test_level_trigger_triggers_after_initial_value_on_level() -> None:
     assert sample_1 is None
     assert sample_2 is not None
     assert sample_3 is not None
+
+def test_apply_trigger_no_instance_needed() -> None:
+    # apply_trigger is a static method — callable without an EdapDevice instance
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    result = EdapDevice.apply_trigger({"power": 23}, triggers)
+    assert result is not None
+    assert result["triggers"] == ["power_id"]
+
+
+def test_apply_trigger_returns_none_when_no_triggers_fire() -> None:
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    assert EdapDevice.apply_trigger({"power": 21}, triggers) is None
+
+
+def test_apply_trigger_returns_none_for_empty_triggers() -> None:
+    assert EdapDevice.apply_trigger({"power": 100}, []) is None
+
+
+def test_apply_trigger_result_contains_sample_fields() -> None:
+    sample_time = datetime.now(timezone.utc)
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    result = EdapDevice.apply_trigger({"time": sample_time, "power": 25, "energy": 10}, triggers)
+    assert result is not None
+    assert result["time"] == sample_time
+    assert result["power"] == 25
+    assert result["energy"] == 10
+
+
+def test_apply_trigger_is_stateless_between_calls() -> None:
+    # apply_trigger builds its own conditions state per call — two calls with
+    # identical fresh trigger copies produce identical results
+    from copy import deepcopy
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    sample = {"power": 25}
+    result_1 = EdapDevice.apply_trigger(sample, deepcopy(triggers))
+    result_2 = EdapDevice.apply_trigger(sample, deepcopy(triggers))
+    assert result_1 is not None
+    assert result_2 is not None
+    assert result_1["triggers"] == result_2["triggers"]
+
+
+def test_apply_trigger_updates_trigger_value_on_activation() -> None:
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    EdapDevice.apply_trigger({"power": 25}, triggers)
+    assert triggers[0]["value"] == 25
+
+
+def test_apply_trigger_does_not_mutate_trigger_value_when_not_activated() -> None:
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    EdapDevice.apply_trigger({"power": 21}, triggers)
+    assert triggers[0]["value"] == 20
+
+
+def test_apply_trigger_discard_sample_prefixes_trigger_id() -> None:
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id", "discard_sample": True}]
+    result = EdapDevice.apply_trigger({"power": 25}, triggers)
+    assert result is not None
+    assert result["triggers"] == ["#power_id"]
+
+
+def test_apply_trigger_sensors_populated_by_trigger_without_sensors_list() -> None:
+    # A trigger with no 'sensors' key copies all sensors into the result
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id"}]
+    sample = {"power": 25, "sensors": {"temp": 30, "voltage": 400}}
+    result = EdapDevice.apply_trigger(sample, triggers)
+    assert result is not None
+    assert result["sensors"] == {"temp": 30, "voltage": 400}
+
+
+def test_apply_trigger_sensors_filtered_by_trigger_sensors_list() -> None:
+    # A trigger with a 'sensors' list copies only the listed sensors into the result
+    triggers = [{"property": "power", "delta": 2, "value": 20, "id": "power_id", "sensors": ["temp"]}]
+    sample = {"power": 25, "sensors": {"temp": 30, "voltage": 400}}
+    result = EdapDevice.apply_trigger(sample, triggers)
+    assert result is not None
+    assert result["sensors"] == {"temp": 30}
+    assert "voltage" not in result["sensors"]
+
+
+def test_apply_trigger_condition_triggers() -> None:
+    triggers = [
+        {"id": "delta_1", "property": "power", "delta": 2, "conditions": ["c1"]},
+        {"condition": "c1", "property": "power", "greater": 10, "less": 30},
+    ]
+    # no prior value and c1 satisfied (10 < 15 < 30) → fires; trigger value updated to 15
+    result = EdapDevice.apply_trigger({"power": 15}, triggers)
+    assert result is not None
+    assert result["triggers"] == ["delta_1"]
+
+    # delta |17-15|=2 not > 2 → doesn't fire
+    assert EdapDevice.apply_trigger({"power": 17}, triggers) is None
+
+    # delta |18-15|=3 > 2 and c1 satisfied → fires; trigger value updated to 18
+    assert EdapDevice.apply_trigger({"power": 18}, triggers) is not None
+
+    # power=35 fails c1 (35 >= 30) → doesn't fire even though delta would be large enough
+    assert EdapDevice.apply_trigger({"power": 35}, triggers) is None
+
+
+def test_apply_trigger_tolerance_transition() -> None:
+    # Tolerance triggers on value↔no-value transition (stateless, checked each call independently)
+    triggers = [{"property": "power", "value": 20, "tolerance": 1, "id": "power_id"}]
+
+    # had value, now None → triggers
+    result = EdapDevice.apply_trigger({"power": None}, triggers)
+    assert result is not None
+
+    # trigger value was updated to None; still None → no trigger
+    assert triggers[0]["value"] is None
+    result = EdapDevice.apply_trigger({"power": None}, triggers)
+    assert result is None
+
+    # was None, now has value → triggers
+    result = EdapDevice.apply_trigger({"power": 20}, triggers)
+    assert result is not None
+
 
 @pytest.mark.parametrize("delta_value", [None, 0, 0.1])
 def test_delta_trigger_triggers_on_bool_change(delta_value: float | int | None) -> None:
