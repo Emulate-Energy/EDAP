@@ -43,7 +43,6 @@ class EdapDevice(ABC):
     def __init__(self, triggers: list[Trigger] | None = None) -> None:
         self._triggers: list[Trigger] = []
         self._last_sample: EdapSample | None = None
-        self._conditions: dict[str, Trigger] = {}
         self.set_triggers(triggers)
 
     def get_triggers(self) -> list[Trigger]:
@@ -54,11 +53,6 @@ class EdapDevice(ABC):
             self._triggers = []
         else:
             self._triggers = triggers
-        self._conditions = {}
-        for trigger in self._triggers:
-            condition = trigger.get("condition")
-            if condition is not None:
-                self._conditions[condition] = trigger
 
     @staticmethod
     def _delta_triggered(current_sample_value: _MeasurementValue, trigger: Trigger) -> bool:
