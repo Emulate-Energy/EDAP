@@ -202,7 +202,10 @@ class EdapDevice(ABC):
 
     @staticmethod
     def apply_trigger(sample: EdapSample, triggers: list[Trigger]) -> EdapSample | None:
-        """Check if a sample activates any triggers. Returns a triggered EdapSample with activated trigger IDs, or None if no triggers fired."""
+        """Check if a sample activates any triggers. Returns a triggered EdapSample with activated trigger IDs, or None if no triggers fired.
+        To be noted is the input "triggers" object will be updated with the values of the activated triggers and their conditions,
+        but the returned EdapSample will have the trigger IDs in the "triggers" list and not the full trigger objects.
+        This is to avoid confusion about what properties are part of the triggered sample and what are part of the trigger definition."""
         conditions: dict[str, Trigger] = {}
         for t in triggers:
             condition = t.get("condition")
