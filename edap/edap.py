@@ -104,9 +104,9 @@ class EdapDevice(ABC):
 
     @staticmethod
     def _tolerance_triggered(current_sample_value: _SampleValue, trigger: Trigger) -> bool:
-        if "tolerance" not in trigger:
+        if "tolerance" not in trigger or trigger.get("tolerance") is None:
             return False
-        trigger_value = trigger["value"]
+        trigger_value = trigger.get("value", trigger.get("tolerance"))
         has_value = current_sample_value.exists and current_sample_value.value is not None
         if (trigger_value is None and has_value) or (trigger_value is not None and not has_value):
             return True
@@ -187,6 +187,13 @@ class EdapDevice(ABC):
             if trigger_property == "time":
                 return EdapDevice._is_time_triggered(current_sample.get('time'), trigger)
             current_sample_value = EdapDevice._get_sample_value(current_sample, trigger_property)
+
+            # A missing or None sample value must not activate any trigger other than the
+            # tolerance trigger, which deliberately fires on value<->no-value transitions
+            # (and only when it has been given a value different from None).
+            if not (current_sample_value.exists and current_sample_value.value is not None):
+                return EdapDevice._tolerance_triggered(current_sample_value, trigger)
+
             if "condition" in trigger and EdapDevice._condition_triggered(current_sample_value.value, trigger):
                 return True
 

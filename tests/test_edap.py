@@ -53,6 +53,26 @@ def test_single_trigger():
     assert triggered_sample.get("triggers")[0] == "power_id"
     assert edap_device.get_triggers()[0]['value'] == 23
 
+def test_delta_trigger_on_non_exiting_property():
+    first_sample_time = datetime.now(timezone.utc)
+    edap_device = EdapDevice()
+    edap_device.set_triggers([
+    {
+        "property": "current_max",
+        "delta": 1,
+        "value": 20,
+        "id": "current_max_id"
+    }
+    ])
+
+    # this sample should not trigger since the ttriigger propert is not exisitng in the sample
+    triggered_sample = edap_device.trigger({"energy": 100, "time": first_sample_time, "sensors": {"temp": 21}})
+    assert triggered_sample is None
+    triggered_sample = edap_device.trigger({"energy": 100, "sensors": {"temp": 21, "current_max": None}})
+    assert triggered_sample is None
+    triggered_sample = edap_device.trigger({"energy": 100, "sensors": {"temp": 21, "current_max": 7}})
+    assert triggered_sample is not None
+
 def test_multiple_triggers():
     edap_device = EdapDevice()
     edap_device.set_triggers([
@@ -144,6 +164,60 @@ def test_tolerance_trigger():
     # last known value was None, now 21 — value appeared, trigger activated
     assert triggered_sample is not None
 
+def test_tolerance_trigger_none(): 
+    edap_device = EdapDevice()
+    edap_device.set_triggers([
+    {
+        "property": "power",
+        "value": 15,
+        "delta": 2,
+        "tolerance": None,
+        "id": "power_id"
+    }
+    ])
+
+    triggered_sample = edap_device.trigger({"power": 20})
+    # last known value was None, now 20 — value appeared, trigger activated
+    assert triggered_sample is not None
+
+    triggered_sample = edap_device.trigger({"power": 20})
+    # last known value is now 20, still 20 — no transition, trigger not activated
+    assert triggered_sample is None
+
+    triggered_sample = edap_device.trigger({"power": None})
+    # last known value was 20, now None — value disappeared, trigger not activated because tolerance is None
+    assert triggered_sample is None
+
+def test_missing_or_none_value_does_not_activate_non_tolerance_triggers():
+    # A missing or None sample value must not activate delta/level/condition triggers,
+    # not even on the first sample (where no previous trigger value is stored yet).
+    edap_device = EdapDevice()
+    edap_device.set_triggers([
+        {"id": "delta_id", "property": "power", "delta": 2},
+        {"id": "levels_id", "property": "power", "levels": [10, 20]},
+        {"id": "cond_id", "property": "power", "condition": "c", "greater": 0},
+    ])
+
+    # None value on the first sample — previously the delta trigger fired here
+    assert edap_device.trigger({"power": None}) is None
+    # missing property entirely
+    assert edap_device.trigger({}) is None
+    # a real value still triggers as normal
+    assert edap_device.trigger({"power": 25}) is not None
+
+
+def test_none_value_only_activates_tolerance_trigger():
+    # When a value disappears, only the tolerance trigger should fire even though a
+    # delta is also configured on the same property.
+    edap_device = EdapDevice()
+    edap_device.set_triggers([
+        {"id": "power_id", "property": "power", "value": 20, "delta": 2, "tolerance": 2},
+    ])
+
+    result = edap_device.trigger({"power": None})
+    assert result is not None
+    assert result["triggers"] == ["power_id"]
+
 
 def test_level_triggered():
     edap_device = EdapDevice()
@@ -157,6 +231,11 @@ def test_level_triggered():
         "id": "levels_2",
         "property": "power",
         "levels": [19, 30]
+    },
+    {
+        "id": "tolerance_2",
+        "property": "power",
+        "tolerance": None
     }
     ])
 
