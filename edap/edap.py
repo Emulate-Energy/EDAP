@@ -66,7 +66,8 @@ class EdapDevice(ABC):
         if not isinstance(trigger_value, float | int | bool | str):
             return False
         delta = trigger["delta"]
-        if delta is None or delta == 0:
+        # A string has no magnitude to measure a delta against, so any change fires.
+        if delta is None or delta == 0 or isinstance(current_sample_value, str) or isinstance(trigger_value, str):
             return current_sample_value != trigger_value
         return abs(current_sample_value - trigger_value) > delta
 

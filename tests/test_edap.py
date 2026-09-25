@@ -559,3 +559,23 @@ def test_delta_trigger_triggers_on_string_change(delta_value: float | int | None
     assert sample_1 is None
     assert sample_2 is not None
     assert sample_3 is not None
+
+
+@pytest.mark.parametrize("delta_value", [None, 0, 1.5])
+def test_delta_trigger_triggers_on_heat_mode_change(delta_value: float | int | None) -> None:
+    # Arrange
+    edap_device = EdapDevice(
+        [{"property": "heat_mode", "delta": delta_value, "id": "delta_1"}]
+    )
+    edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"heat_mode": "heating"}, "energy": None})
+
+    # Act
+    sample_1 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"heat_mode": "heating"}, "energy": None})
+    sample_2 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"heat_mode": "off"}, "energy": None})
+    sample_3 = edap_device.trigger({"power": None, "triggers": [], "time": None, "sensors": {"heat_mode": "off"}, "energy": None})
+
+    # Assert
+    assert sample_1 is None
+    assert sample_2 is not None
+    assert sample_2["triggers"] == ["delta_1"]
+    assert sample_3 is None
